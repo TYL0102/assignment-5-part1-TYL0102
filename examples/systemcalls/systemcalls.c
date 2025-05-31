@@ -1,4 +1,8 @@
 #include "systemcalls.h"
+#include<stdlib.h>
+#include<unistd.h>
+#include<sys/wait.h>
+#include<fcntl.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -17,7 +21,16 @@ bool do_system(const char *cmd)
  *   or false() if it returned a failure
 */
 
-    return true;
+    // check null string
+    if (cmd == NULL) {
+        return false;
+    }
+
+    // execute with system()
+    int status = system(cmd);
+
+    // check return code
+    return status != -1 && WIFEXITED(status) && WEXITSTATUS(status) == 0;
 }
 
 /**
@@ -33,7 +46,6 @@ bool do_system(const char *cmd)
 *   fork, waitpid, or execv() command, or if a non-zero return value was returned
 *   by the command issued in @param arguments with the specified arguments.
 */
-
 bool do_exec(int count, ...)
 {
     va_list args;
@@ -45,9 +57,7 @@ bool do_exec(int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    va_end(args);
 
 /*
  * TODO:
@@ -59,9 +69,31 @@ bool do_exec(int count, ...)
  *
 */
 
-    va_end(args);
+    // flush output
+    fflush(stdout);
 
-    return true;
+    // fork process
+    pid_t pid = fork();
+    if (pid == -1) {
+        return false;
+    }
+
+    // handle process
+    if (pid == 0) {
+        // child process
+        execv(command[0], command);
+        exit(1);
+    } else {
+        // parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            return false;
+        }
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+
+    // should not reach here
+    return false;
 }
 
 /**
@@ -80,10 +112,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
-
+    va_end(args);
 
 /*
  * TODO
@@ -93,7 +122,37 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *
 */
 
-    va_end(args);
+    // flush output
+    fflush(stdout);
 
-    return true;
+    // fork process
+    pid_t pid = fork();
+    if (pid == -1) {
+        return false;
+    }
+
+    // handle process
+    if (pid == 0) {
+        // child process
+        int file = open(outputfile, O_WRONLY | O_CREAT | O_TRUNC);
+        if (file == -1) {
+            exit(1);
+        }
+        if (dup2(file, STDOUT_FILENO) == -1) {
+            exit(1);
+        }
+        close(file);
+        execv(command[0], command);
+        exit(1);
+    } else {
+        // parent process
+        int status;
+        if (waitpid(pid, &status, 0) == -1) {
+            return false;
+        }
+        return WIFEXITED(status) && WEXITSTATUS(status) == 0;
+    }
+
+    // should not reach here
+    return false;
 }
