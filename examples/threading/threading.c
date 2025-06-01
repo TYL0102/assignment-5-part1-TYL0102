@@ -58,7 +58,6 @@ bool start_thread_obtaining_mutex(pthread_t *thread, pthread_mutex_t *mutex,int 
         free(thread_func_args);
         return false;
     }
-    // pthread_detach(thread);
     return true;
 
 }
